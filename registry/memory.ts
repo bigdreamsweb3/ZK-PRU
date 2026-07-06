@@ -1,31 +1,30 @@
 /**
  * In-memory registry — for local development and testing.
- * Implements docs/05-registry.md exactly: one record per context_id,
- * containing only PRU public keys and a commitment hash. No field
- * links one record to another or to a wallet.
+ *
+ * Keyed by PRU, not by context_id. See docs/05-registry.md, "Why keyed
+ * by PRU, not by context_id": context_id is shared by every user of a
+ * protocol, so keying by context_id alone would let one user's
+ * registration overwrite another user's commitment under the same key.
  */
 import type { Registry, RegistryRecord } from "../sdk/types.js";
 
 export class MemoryRegistry implements Registry {
   private records = new Map<string, RegistryRecord>();
 
-  async register(
-    contextId: string,
-    pruPublicKeys: string[],
-    commitmentHash: string
-  ): Promise<void> {
-    // Enforce the record shape at the boundary — no extra fields can
-    // sneak in even if a caller tries to pass them via object spread
-    // upstream, since this function only accepts these three values.
-    this.records.set(contextId, { contextId, pruPublicKeys, commitmentHash });
+  async register(contextId: string, pru: string, commitmentHash: string): Promise<void> {
+    this.records.set(pru, { pru, contextId, commitmentHash });
   }
 
-  async getCommitment(contextId: string): Promise<string | null> {
-    return this.records.get(contextId)?.commitmentHash ?? null;
+  async getRecord(pru: string): Promise<{ contextId: string; commitmentHash: string } | null> {
+    const record = this.records.get(pru);
+    if (!record) return null;
+    return { contextId: record.contextId, commitmentHash: record.commitmentHash };
   }
 
-  async getPRUs(contextId: string): Promise<string[]> {
-    return this.records.get(contextId)?.pruPublicKeys ?? [];
+  async getPRUsForContext(contextId: string): Promise<string[]> {
+    return Array.from(this.records.values())
+      .filter((r) => r.contextId === contextId)
+      .map((r) => r.pru);
   }
 
   /** Test/debug helper only — not part of the Registry interface. */

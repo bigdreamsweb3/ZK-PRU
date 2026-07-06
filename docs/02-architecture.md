@@ -30,7 +30,7 @@
                           ┌────────────────────┐
                           │   Registry            │
                           │  one record per        │
-                          │  context_id             │
+                          │  PRU                   │
                           └─────────┬────────────┘
                                     │ verify(π, commitment_hash)
                                     ▼
@@ -54,7 +54,7 @@ Derives `identity_seed` and `vault_signature` from two fixed wallet signatures. 
 Combines `identity_seed`, a `context_id`, and `vault_signature` to derive a `PRU_seed`, and from that, any number of indexed PRUs for that context. See [`04-pru-generation.md`](./04-pru-generation.md).
 
 ### 3. Registry (public, on-chain or off-chain)
-Stores exactly one record per `context_id`: the list of PRU public keys issued under that context, and a single `commitment_hash`. No record contains any field that links it to another record or to a wallet. See [`05-registry.md`](./05-registry.md).
+Stores exactly one record per PRU: the PRU public value, its `context_id`, and a single `commitment_hash`. No record contains any field that links it to another record or to a wallet. See [`05-registry.md`](./05-registry.md).
 
 ### 4. ZK Circuit + Verifier
 The circuit proves knowledge of the private inputs (`wallet_address`, `identity_signature`, `vault_signature`, `context_id`, `i`) that produce a given `PRU` and `commitment_hash`, without revealing those inputs. See [`06-zk-proofs.md`](./06-zk-proofs.md).

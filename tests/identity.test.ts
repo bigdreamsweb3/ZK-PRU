@@ -1,44 +1,51 @@
 import { describe, expect, it } from "vitest";
 import { deriveIdentity, signIdentityChallenge, signVaultChallenge } from "../sdk/identity.js";
 import { MockWallet } from "../sdk/mock-wallet.js";
+import type { RegistryBinding } from "../sdk/types.js";
 
-const CHAIN_ID = 1;
-const REGISTRY_ADDRESS = "0xRegistryContractAddress";
+const REGISTRY_BINDING: RegistryBinding = {
+  cluster: "devnet",
+  registryProgramId: "ZkPruRegistryDevnet111111111111111111111111",
+  version: "v1",
+};
 
 describe("identity derivation", () => {
   it("is deterministic across repeated calls for the same wallet", async () => {
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
-    const first = await deriveIdentity(wallet, CHAIN_ID, REGISTRY_ADDRESS);
-    const second = await deriveIdentity(wallet, CHAIN_ID, REGISTRY_ADDRESS);
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
+    const first = await deriveIdentity(wallet, REGISTRY_BINDING);
+    const second = await deriveIdentity(wallet, REGISTRY_BINDING);
 
     expect(first.identitySeed).toBe(second.identitySeed);
     expect(first.vaultSignature).toBe(second.vaultSignature);
   });
 
   it("produces different identity seeds for different wallets", async () => {
-    const walletA = new MockWallet("0xaaa", "secret-a");
-    const walletB = new MockWallet("0xbbb", "secret-b");
+    const walletA = new MockWallet("SoLanaWalletAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "secret-a");
+    const walletB = new MockWallet("SoLanaWalletBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "secret-b");
 
-    const a = await deriveIdentity(walletA, CHAIN_ID, REGISTRY_ADDRESS);
-    const b = await deriveIdentity(walletB, CHAIN_ID, REGISTRY_ADDRESS);
+    const a = await deriveIdentity(walletA, REGISTRY_BINDING);
+    const b = await deriveIdentity(walletB, REGISTRY_BINDING);
 
     expect(a.identitySeed).not.toBe(b.identitySeed);
   });
 
-  it("builds distinct EIP-712 signatures for identity vs vault", async () => {
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
-    const identitySig = await signIdentityChallenge(wallet, CHAIN_ID, REGISTRY_ADDRESS);
-    const vaultSig = await signVaultChallenge(wallet, CHAIN_ID, REGISTRY_ADDRESS);
+  it("builds distinct Solana signatures for identity vs vault", async () => {
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
+    const identitySig = await signIdentityChallenge(wallet, REGISTRY_BINDING);
+    const vaultSig = await signVaultChallenge(wallet, REGISTRY_BINDING);
     expect(identitySig).not.toBe(vaultSig);
   });
 
-  it("produces a different identity signature when bound to a different registry contract", async () => {
-    // This is the phishing-resistance property from docs/03-identity-model.md:
-    // the same wallet signing the "same" challenge against a different
-    // verifyingContract must produce a different signature.
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
-    const sigForRealContract = await signIdentityChallenge(wallet, CHAIN_ID, "0xRealRegistry");
-    const sigForPhishingContract = await signIdentityChallenge(wallet, CHAIN_ID, "0xPhishingRegistry");
-    expect(sigForRealContract).not.toBe(sigForPhishingContract);
+  it("produces a different identity signature when bound to a different registry program", async () => {
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
+    const realBinding = REGISTRY_BINDING;
+    const phishingBinding: RegistryBinding = {
+      ...REGISTRY_BINDING,
+      registryProgramId: "FakeZkPruRegistry1111111111111111111111111",
+    };
+
+    expect(await signIdentityChallenge(wallet, realBinding)).not.toBe(
+      await signIdentityChallenge(wallet, phishingBinding)
+    );
   });
 });

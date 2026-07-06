@@ -1,113 +1,102 @@
 /**
- * Identity derivation — implements docs/03-identity-model.md exactly.
+ * Identity derivation for Solana-native ZK-PRU.
  *
- * Both fixed challenges are EIP-712 typed data, domain-separated and
- * bound to the deployed registry contract via `verifyingContract`.
- * This closes a phishing gap that a plain fixed string does not: a
- * look-alike site replaying the same challenge text against a
- * different contract address will show a mismatched domain in any
- * wallet that surfaces EIP-712 fields.
+ * Both fixed challenges are canonical UTF-8 Solana signMessage payloads.
+ * They are domain-separated and bound to the registry program ID,
+ * cluster, wallet public key, and ZK-PRU version.
  *
- * REJECTED DESIGN — do not reintroduce: an earlier draft proposed
- * mixing a user-memorized 4-digit PIN into this derivation
- * (`Poseidon(vault_signature, user_pin)`), with recovery done by
- * scanning the public registry for a match. This is unsafe: since the
- * registry is public and verification is offline, anyone who obtains
- * `vault_signature` (e.g. via a phishing signature request) can
- * brute-force all 10,000 PINs in well under a second and deanonymize
- * the wallet across every registered context. No low-entropy secret
- * may ever be mixed into this derivation — see docs/03-identity-model.md.
- *
- * SECURITY: identitySignature and vaultSignature must NEVER be logged,
+ * SECURITY: identitySignature and vaultSignature must never be logged,
  * cached to persistent storage, or transmitted over the network. They
- * exist only as private ZK circuit inputs (see docs/06-zk-proofs.md)
- * and as transient in-memory values during proof generation.
- *
- * A repo-level check (scripts/check-no-secret-leak.sh) greps the
- * codebase for these identifiers appearing near fetch/axios/console.log/
- * storage calls and fails the build if found — see CODEX_PROMPT.md,
- * deliverable 1.
+ * exist only as private ZK circuit inputs and transient in-memory values
+ * during proof generation.
  */
 import { hash2, stringToField } from "./poseidon.js";
-import type { EIP712Domain, FieldElement, Private, WalletSigner } from "./types.js";
+import type { FieldElement, Private, RegistryBinding, WalletSigner } from "./types.js";
 
 const SESSION_PREFIX = "ZK-PRU-SESSION";
+const textEncoder = new TextEncoder();
 
-function buildDomain(chainId: number, registryAddress: string): EIP712Domain {
-  return {
-    name: "ZK-PRU Protocol",
-    version: "1.0.0",
-    chainId,
-    verifyingContract: registryAddress,
-  };
+function encodeCanonicalMessage(lines: string[]): Uint8Array {
+  return textEncoder.encode(lines.join("\n"));
+}
+
+function signatureToString(signature: Uint8Array | string): string {
+  if (typeof signature === "string") return signature;
+  return Buffer.from(signature).toString("base64");
+}
+
+export function buildIdentityChallenge(
+  walletPublicKey: string,
+  binding: RegistryBinding
+): Uint8Array {
+  return encodeCanonicalMessage([
+    "ZK-PRU Identity Root",
+    `Cluster: ${binding.cluster}`,
+    `Registry Program: ${binding.registryProgramId}`,
+    `Wallet: ${walletPublicKey}`,
+    `Version: ${binding.version}`,
+    "Purpose: identity_root",
+  ]);
+}
+
+export function buildVaultChallenge(
+  walletPublicKey: string,
+  binding: RegistryBinding
+): Uint8Array {
+  return encodeCanonicalMessage([
+    "ZK-PRU Vault Root",
+    `Cluster: ${binding.cluster}`,
+    `Registry Program: ${binding.registryProgramId}`,
+    `Wallet: ${walletPublicKey}`,
+    `Version: ${binding.version}`,
+    "Purpose: vault_root",
+  ]);
 }
 
 export async function signIdentityChallenge(
   wallet: WalletSigner,
-  chainId: number,
-  registryAddress: string
+  binding: RegistryBinding
 ): Promise<string> {
-  return wallet.signTypedData(
-    buildDomain(chainId, registryAddress),
-    { Identity: [{ name: "purpose", type: "string" }] },
-    { purpose: "ZK-PRU Identity Root" }
-  );
+  const message = buildIdentityChallenge(wallet.publicKey, binding);
+  return signatureToString(await wallet.signMessage(message));
 }
 
 export async function signVaultChallenge(
   wallet: WalletSigner,
-  chainId: number,
-  registryAddress: string
+  binding: RegistryBinding
 ): Promise<string> {
-  return wallet.signTypedData(
-    buildDomain(chainId, registryAddress),
-    { Vault: [{ name: "purpose", type: "string" }] },
-    { purpose: "ZK-PRU Vault Root" }
-  );
+  const message = buildVaultChallenge(wallet.publicKey, binding);
+  return signatureToString(await wallet.signMessage(message));
 }
 
 export function buildSessionChallenge(
-  walletAddress: string,
+  walletPublicKey: string,
   timestamp: number,
   nonce: string
 ): string {
-  // Poseidon over structured fields, not string concatenation, so the
-  // three inputs can't be reinterpreted (e.g. by shifting characters
-  // between fields) to produce a colliding challenge.
   return hash2(
-    stringToField(`${SESSION_PREFIX}${walletAddress}`),
+    stringToField(`${SESSION_PREFIX}${walletPublicKey}`),
     hash2(stringToField(String(timestamp)), stringToField(nonce))
   ).toString();
 }
 
 /**
- * Signs both fixed EIP-712 challenges and derives identity_seed. Both
- * signatures are returned as Private<> — callers must not pass them to
- * any network call or storage write.
+ * Signs both fixed Solana messages and derives identity_seed. Both
+ * signatures are returned as Private<> values.
  */
 export async function deriveIdentity(
   wallet: WalletSigner,
-  chainId: number,
-  registryAddress: string
+  binding: RegistryBinding
 ): Promise<{
   identitySeed: Private<FieldElement>;
   identitySignature: Private<string>;
   vaultSignature: Private<string>;
 }> {
-  const identitySignature = (await signIdentityChallenge(
-    wallet,
-    chainId,
-    registryAddress
-  )) as Private<string>;
-
-  const vaultSignature = (await signVaultChallenge(
-    wallet,
-    chainId,
-    registryAddress
-  )) as Private<string>;
+  const identitySignature = (await signIdentityChallenge(wallet, binding)) as Private<string>;
+  const vaultSignature = (await signVaultChallenge(wallet, binding)) as Private<string>;
 
   const identitySeed = hash2(
-    stringToField(wallet.address),
+    stringToField(wallet.publicKey),
     stringToField(identitySignature)
   ) as Private<FieldElement>;
 

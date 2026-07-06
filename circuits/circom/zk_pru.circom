@@ -2,8 +2,7 @@
 //
 // Implements the same constraints as the Noir canonical circuit, per
 // docs/06-zk-proofs.md, including action-binding for replay/front-running
-// protection. Keep this file in sync manually — see CODEX_PROMPT.md
-// deliverable 3: pick one circuit as canonical per deployment and treat
+// protection. Pick one circuit as canonical per deployment and treat
 // the other as an audited port, not a second source of truth.
 
 pragma circom 2.1.0;

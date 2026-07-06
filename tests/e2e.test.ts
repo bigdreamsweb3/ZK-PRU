@@ -3,23 +3,26 @@ import { ZKPRU, ZKPRUVerifier } from "../sdk/index.js";
 import { MockWallet } from "../sdk/mock-wallet.js";
 import { MockProver, MockVerifier } from "../sdk/mock-backend.js";
 import { MemoryRegistry } from "../registry/memory.js";
+import type { RegistryBinding } from "../sdk/types.js";
 
-const CHAIN_ID = 1;
-const REGISTRY_ADDRESS = "0xRegistryContractAddress";
+const REGISTRY_BINDING: RegistryBinding = {
+  cluster: "devnet",
+  registryProgramId: "ZkPruRegistryDevnet111111111111111111111111",
+  version: "v1",
+};
 
 function makeClient(wallet: MockWallet, registry: MemoryRegistry) {
   return new ZKPRU({
     wallet,
     registry,
     prover: new MockProver(),
-    chainId: CHAIN_ID,
-    registryAddress: REGISTRY_ADDRESS,
+    registryBinding: REGISTRY_BINDING,
   });
 }
 
 describe("end-to-end: connect wallet -> PRU -> proof -> verify", () => {
   it("generates two unlinkable PRUs across two contexts, both independently verifiable", async () => {
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
     const registry = new MemoryRegistry();
     const client = makeClient(wallet, registry);
     const verifier = new ZKPRUVerifier({ registry, verifier: new MockVerifier() });
@@ -36,7 +39,7 @@ describe("end-to-end: connect wallet -> PRU -> proof -> verify", () => {
     const recordA = registry._dump().find((r) => r.contextId === "protocol-A")!;
     const recordB = registry._dump().find((r) => r.contextId === "protocol-B")!;
     expect(recordA.commitmentHash).not.toBe(recordB.commitmentHash);
-    expect(recordA.pruPublicKeys).not.toEqual(recordB.pruPublicKeys);
+    expect(recordA.pru).not.toBe(recordB.pru);
 
     const proofA = await client.proveOwnership({ contextId: "protocol-A", index: 0 });
     const proofB = await client.proveOwnership({ contextId: "protocol-B", index: 0 });
@@ -62,7 +65,7 @@ describe("end-to-end: connect wallet -> PRU -> proof -> verify", () => {
   });
 
   it("rejects a proof for context A when checked against context B's commitment", async () => {
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
     const registry = new MemoryRegistry();
     const client = makeClient(wallet, registry);
     const verifier = new ZKPRUVerifier({ registry, verifier: new MockVerifier() });
@@ -90,7 +93,7 @@ describe("end-to-end: connect wallet -> PRU -> proof -> verify", () => {
     // This is the concrete replay/front-running protection from
     // docs/06-zk-proofs.md: a proof generated for one action must not
     // verify against a different action_payload_hash.
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
     const registry = new MemoryRegistry();
     const client = makeClient(wallet, registry);
     const verifier = new ZKPRUVerifier({ registry, verifier: new MockVerifier() });
@@ -132,7 +135,7 @@ describe("end-to-end: connect wallet -> PRU -> proof -> verify", () => {
   });
 
   it("blocks Mode B fallback unless allowFallback is explicitly set", async () => {
-    const wallet = new MockWallet("0xabc123", "secret-key-1");
+    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
     const registry = new MemoryRegistry();
     const client = makeClient(wallet, registry);
 

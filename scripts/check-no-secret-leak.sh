@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails the build if identity_signature / vault_signature / identitySignature
 # / vaultSignature appear anywhere near a fetch/axios/console.log/storage
-# call. Per CODEX_PROMPT.md deliverable 1 and docs/09-security-model.md.
+# call. Per docs/09-security-model.md.
 #
 # This is a coarse grep-based guard, not a full data-flow analysis — it
 # catches the obvious mistake (passing a secret directly into a network

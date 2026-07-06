@@ -108,7 +108,7 @@ For a pure login proof with no on-chain action to bind, pass `action_payload_has
 
 ## Proof generation flow (client-side)
 
-1. Wallet signs `identity_challenge` and `vault_challenge`, both EIP-712 typed data bound to the deployed registry contract (see [`03-identity-model.md`](./03-identity-model.md)).
+1. Wallet signs `identity_challenge` and `vault_challenge`, both canonical Solana `signMessage` payloads bound to the cluster, registry program ID, wallet public key, and ZK-PRU version (see [`03-identity-model.md`](./03-identity-model.md)).
 2. Client computes `identity_seed`, `PRU_seed`, and `PRU[context_id][i]` locally.
 3. For an authorization proof, the calling protocol supplies `action_payload_hash`; the client computes `action_commitment`.
 4. Client feeds all private + public inputs into the circuit's proving function.

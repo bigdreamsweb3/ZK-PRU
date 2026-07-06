@@ -8,5 +8,3 @@ circuits/**/target/
 circuits/**/*.proof
 circuits/**/*.vk
 coverage/
-
-CODEX_PROMPT.md

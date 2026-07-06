@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:attacks": "node tests/attack-simulations/run-attacks.mjs",
     "// === Git & Deployment ===": "Repository helpers. Review git status before committing or pushing.",
     "git:status": "git status --short",
     "git:hygiene": "node scripts/git-hygiene-check.mjs",

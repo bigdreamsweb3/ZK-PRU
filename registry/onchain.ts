@@ -1,37 +1,32 @@
 /**
  * On-chain registry adapter — thin interface over a smart contract
- * that stores the same record shape as MemoryRegistry. The contract
- * itself is out of scope here (see CODEX_PROMPT.md, deliverable 2) —
- * this file defines the adapter contract implementers must satisfy.
+ * that stores the same record shape as MemoryRegistry, keyed by PRU
+ * (see docs/05-registry.md for why context_id alone can't be the key).
  *
  * Swap `contractClient` for a real chain client (ethers/viem/anchor/etc.)
  * per target chain. The adapter must not add any field beyond
- * {contextId, pruPublicKeys, commitmentHash} to on-chain storage.
+ * {pru, contextId, commitmentHash} to on-chain storage.
  */
 import type { Registry } from "../sdk/types.js";
 
 export interface OnChainContractClient {
-  callRegister(contextId: string, pruPublicKeys: string[], commitmentHash: string): Promise<void>;
-  callGetCommitment(contextId: string): Promise<string | null>;
-  callGetPRUs(contextId: string): Promise<string[]>;
+  callRegister(contextId: string, pru: string, commitmentHash: string): Promise<void>;
+  callGetRecord(pru: string): Promise<{ contextId: string; commitmentHash: string } | null>;
+  callGetPRUsForContext(contextId: string): Promise<string[]>;
 }
 
 export class OnChainRegistry implements Registry {
   constructor(private readonly client: OnChainContractClient) {}
 
-  async register(
-    contextId: string,
-    pruPublicKeys: string[],
-    commitmentHash: string
-  ): Promise<void> {
-    await this.client.callRegister(contextId, pruPublicKeys, commitmentHash);
+  async register(contextId: string, pru: string, commitmentHash: string): Promise<void> {
+    await this.client.callRegister(contextId, pru, commitmentHash);
   }
 
-  async getCommitment(contextId: string): Promise<string | null> {
-    return this.client.callGetCommitment(contextId);
+  async getRecord(pru: string): Promise<{ contextId: string; commitmentHash: string } | null> {
+    return this.client.callGetRecord(pru);
   }
 
-  async getPRUs(contextId: string): Promise<string[]> {
-    return this.client.callGetPRUs(contextId);
+  async getPRUsForContext(contextId: string): Promise<string[]> {
+    return this.client.callGetPRUsForContext(contextId);
   }
 }

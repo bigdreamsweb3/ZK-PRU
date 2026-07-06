@@ -34,7 +34,7 @@ See: [`docs/02-architecture.md`](./docs/02-architecture.md), [`docs/03-identity-
 
 1. `wallet_address`, `identity_signature`, and `vault_signature` never leave the client except as private ZK circuit inputs.
 2. `identity_seed` and `PRU_seed` are never stored or transmitted in plaintext, anywhere.
-3. The registry stores exactly one record per `context_id`: a list of PRU public keys and a `commitment_hash`. No field links two records to the same identity.
+3. The registry stores exactly one record per PRU: the PRU public value, its `context_id`, and its `commitment_hash`. No field links two records to the same identity.
 4. Every hash in the system uses Poseidon, for circuit compatibility.
 5. Recovery requires only wallet access. There is no user-memorized secret anywhere in this design.
 
@@ -46,7 +46,7 @@ See: [`docs/09-security-model.md`](./docs/09-security-model.md)
 |---|---|---|
 | Identity derivation | Wallet signature → `identity_seed` | `sdk/identity.ts` |
 | PRU generator | `identity_seed` + context → `PRU_seed` → `PRU[i]` | `sdk/pru.ts` |
-| Registry | Store/query `{context_id, PRU_public_keys, commitment_hash}` | `registry/` |
+| Registry | Store/query `{pru, context_id, commitment_hash}` | `registry/` |
 | ZK circuit | Prove PRU ownership without revealing private inputs | `circuits/` |
 | Proof verifier | Verify π against `commitment_hash` | `sdk/verify.ts` |
 | Integration SDK | Protocol-facing API for connect → generate → prove → verify | `sdk/` |
