@@ -52,7 +52,7 @@ zk-pru/
 
 ## Status
 
-This repository currently contains the full specification, documentation, and build prompt. Reference implementation is scaffolded for: PRU generation module, registry (in-memory + on-chain-ready interface), ZK circuit, proof verifier, and SDK. See [`CODEX_PROMPT.md`](./CODEX_PROMPT.md) to generate or extend the implementation.
+This repository currently contains the full specification, and documentation. Reference implementation is scaffolded for: PRU generation module, registry (in-memory + on-chain-ready interface), ZK circuit, proof verifier, and SDK.
 
 ## License
 
