@@ -46,7 +46,6 @@ zk-pru/
 ├── registry/       registry implementation (in-memory + on-chain adapter)
 ├── scripts/        dev/build/test scripts
 ├── tests/          unit + integration tests
-├── CODEX_PROMPT.md the full build prompt for AI-assisted implementation
 └── ARCHITECTURE.md single-file architecture summary
 ```
 
