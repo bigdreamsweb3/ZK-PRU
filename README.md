@@ -10,12 +10,12 @@ ZK-PRU lets a user generate a unique, unlinkable identity (a **PRU**) for every 
 
 Wallet addresses are public by default. Every transaction, vote, and login using a raw wallet address is linkable to every other action that wallet has ever taken, across every protocol. ZK-PRU breaks that link:
 
-| Without ZK-PRU | With ZK-PRU |
-|---|---|
-| One wallet address, visible everywhere | One unlinkable PRU per protocol |
-| Full on-chain activity history is public | Only per-protocol activity is visible, with no cross-protocol trail |
-| Voting/payment history traceable to identity | Ownership provable via ZK proof, without revealing identity |
-| Sybil detection relies on wallet uniqueness | Protocols can layer their own Sybil rules on top of PRUs |
+| Without ZK-PRU                               | With ZK-PRU                                                         |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| One wallet address, visible everywhere       | One unlinkable PRU per protocol                                     |
+| Full on-chain activity history is public     | Only per-protocol activity is visible, with no cross-protocol trail |
+| Voting/payment history traceable to identity | Ownership provable via ZK proof, without revealing identity         |
+| Sybil detection relies on wallet uniqueness  | Protocols can layer their own Sybil rules on top of PRUs            |
 
 ## How it works, in one paragraph
 
@@ -51,7 +51,7 @@ zk-pru/
 
 ## Status
 
-This repository currently contains the full specification, and documentation. Reference implementation is scaffolded for: PRU generation module, registry (in-memory + on-chain-ready interface), ZK circuit, proof verifier, and SDK.
+This repository currently contains the full specification, documentation, and build prompt. Reference implementation is scaffolded for: PRU generation module, registry (in-memory + on-chain-ready interface), ZK circuit, proof verifier, and SDK.
 
 ## License
 

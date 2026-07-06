@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.DS_Store
+circuits/**/target/
+circuits/**/*.proof
+circuits/**/*.vk
+coverage/
+
+CODEX_PROMPT.md

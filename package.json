@@ -1,0 +1,28 @@
+{
+  "name": "zk-pru",
+  "version": "0.1.0",
+  "description": "Zero-Knowledge Private Routing Units — wallet-bound ZK identity layer",
+  "license": "MIT",
+  "type": "module",
+  "main": "sdk/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "// === Git & Deployment ===": "Repository helpers. Review git status before committing or pushing.",
+    "git:status": "git status --short",
+    "git:hygiene": "node scripts/git-hygiene-check.mjs",
+    "git:hygiene:report": "node scripts/git-hygiene-check.mjs --write-report --warn-only",
+    "git:hygiene:fix": "node scripts/git-hygiene-check.mjs --fix",
+    "git:pull:all": "git pull origin main",
+    "git:commit:push:all": "git add -A && git commit -m \"Something just got updated! \" && git push origin main"
+  },
+  "dependencies": {
+    "poseidon-lite": "^0.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "@types/node": "^20.14.0"
+  }
+}

@@ -11,24 +11,52 @@ Derive a private, permanent `identity_seed` from a wallet, such that:
 
 A single signature scheme is not enough: if the same signature is used both for identity derivation and for everyday session actions, it either has to change on every use (breaking reproducibility) or stay fixed forever (creating replay risk in session contexts). ZK-PRU splits this into two fixed signatures plus one session signature.
 
+Both fixed challenges use **EIP-712 typed data**, domain-separated and bound to the specific deployed registry contract via `verifyingContract`. This matters for a concrete reason: a generic plain-text message (`"ZK-PRU-IDENTITY-V1" || wallet_address`) can be reproduced character-for-character by a phishing site and presented to a wallet under a look-alike domain, with nothing in the signing prompt to distinguish it from the real thing. Binding the challenge to `verifyingContract` means a wallet that checks EIP-712 domain fields (most modern wallets surface this) will show a mismatched contract address if a phishing site tries to replay the same challenge shape against a different deployment, giving the user a concrete signal something is wrong.
+
 ### 1. Identity signature (fixed, derives `identity_seed`)
 
-```
-identity_challenge = "ZK-PRU-IDENTITY-V1" || wallet_address
-identity_signature = sign(wallet, identity_challenge)
-identity_seed = Poseidon(wallet_address, identity_signature)
+```js
+const identityChallenge = {
+  domain: {
+    name: "ZK-PRU Protocol",
+    version: "1.0.0",
+    chainId: chainId,
+    verifyingContract: ZK_PRU_REGISTRY_ADDRESS
+  },
+  types: {
+    Identity: [{ name: "purpose", type: "string" }]
+  },
+  message: { purpose: "ZK-PRU Identity Root" }
+};
+const identity_signature = await wallet.signTypedData(identityChallenge);
+const identity_seed = Poseidon(wallet_address, identity_signature);
 ```
 
-This message never changes. Signing it always produces the same signature (standard wallet signature schemes, e.g. ECDSA/EdDSA over a fixed message, are deterministic or can be made so), so `identity_seed` is always reproducible.
+This message never changes. Signing it always produces the same signature (EIP-712 signatures are deterministic for a given key and payload), so `identity_seed` is always reproducible.
 
 ### 2. Vault signature (fixed, replaces any memorized secret)
 
-```
-vault_challenge = "ZK-PRU-VAULT-V1" || wallet_address
-vault_signature = sign(wallet, vault_challenge)
+```js
+const vaultChallenge = {
+  domain: {
+    name: "ZK-PRU Protocol",
+    version: "1.0.0",
+    chainId: chainId,
+    verifyingContract: ZK_PRU_REGISTRY_ADDRESS
+  },
+  types: {
+    Vault: [{ name: "purpose", type: "string" }]
+  },
+  message: { purpose: "ZK-PRU Vault Root" }
+};
+const vault_signature = await wallet.signTypedData(vaultChallenge);
 ```
 
-This plays the role that a manually-memorized recovery phrase would otherwise play — an additional secret folded into PRU derivation (see [`04-pru-generation.md`](./04-pru-generation.md)) — but it costs the user nothing to maintain, since the wallet can regenerate it identically at any time.
+This plays the role that a manually-memorized recovery phrase (or a PIN) would otherwise play — an additional secret folded into PRU derivation (see [`04-pru-generation.md`](./04-pru-generation.md)) — but it costs the user nothing to maintain, since the wallet can regenerate it identically at any time.
+
+**Why not add a PIN on top of this, for extra defense-in-depth?** It was tried and explicitly rejected — see the box below. The short version: a PIN only adds real security if it's kept secret from the party who could otherwise brute-force it, but in ZK-PRU's fully public registry model, anyone who has `vault_signature` can already brute-force a 4-digit PIN space offline in well under a second, since verification requires nothing but public data and a Poseidon hash. Adding a PIN doesn't add a defense layer here — it just narrows the system down to depending on `vault_signature` alone, which is exactly the same trust assumption as not having a PIN at all, while giving a false sense of "two-factor" security.
+
+> **Rejected design: PIN-mixed entropy.** A candidate revision proposed `secret_entropy = Poseidon(DOMAIN, vault_signature, user_pin)`, with recovery working by scanning the public registry for a matching `PRU_identifier`. This is unsafe specifically *because* the registry is public: the same offline scan a legitimate user runs to recover access is available to any attacker who obtains `vault_signature` (e.g. via a phishing signature request), letting them brute-force all 10,000 PINs and deanonymize the wallet across every registered context in under a second. Any future proposal to add a human-memorized secret to this system must be checked against this same failure mode: **if the registry is public and verification is offline, no low-entropy secret can ever be mixed into the derivation, no matter how it's hashed or salted.**
 
 ### 3. Session signature (per-session, never touches identity derivation)
 
