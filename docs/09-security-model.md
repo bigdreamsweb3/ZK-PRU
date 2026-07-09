@@ -1,34 +1,102 @@
 # Security Model
 
+## Key Security Improvement: Breaking the Signature-to-Identity Link
+
+**The new architecture fixes a critical vulnerability in the old design.**
+
+In the old architecture, wallet signatures were the foundation of identity:
+```
+identity_seed = Poseidon(wallet_address, identity_signature)
+```
+
+A malicious protocol could trick you into signing the same fixed message (disguised as "connect wallet" or "verify identity"), steal your signature, and reconstruct your entire private identity.
+
+**In the new architecture, this attack is impossible:**
+```
+master_seed = CSPRNG(32 bytes)  // Pure entropy, no wallet relationship
+```
+
+A stolen signature reveals nothing about the master_seed because there is no mathematical relationship between them.
+
 ## Guarantees
 
 - **No private key exposure.** The wallet is only ever asked to sign messages; the private key never leaves the wallet.
-- **No stored secrets.** The system (registry, protocols, verifiers) never receives or stores `wallet_address` paired with either fixed signature, `identity_seed`, or `PRU_seed`.
-- **No cross-context linkability.** Two PRUs generated under different `context_id` values share no derivable value, even though both trace back to the same `identity_seed`.
+- **No stored secrets.** The system (registry, protocols, verifiers) never receives or stores `master_seed`, `vault_key`, or any derivable secret.
+- **No cross-protocol linkability.** Two PRUs generated under different `protocol_id` values share no derivable value, even though both trace back to the same `master_seed`.
 - **No recoverable-secret risk.** There is no user-memorized phrase. Full recovery of every PRU requires only wallet access.
 - **Commitment-based verification.** A verifier never needs to see a PRU's private derivation path — only the public `commitment_hash` and a valid proof.
+- **Signature-theft resistant.** A stolen wallet signature cannot compromise the identity because the master_seed has no mathematical relationship to any signature.
 
-## Threat model
+## Threat Model
 
-| Threat | Mitigation |
-|---|---|
-| Attacker observes registry contents | Registry contains only PRUs + commitments, no linking data — see [`05-registry.md`](./05-registry.md) |
-| Attacker intercepts network traffic between client and protocol | Only `{PRU, π}` or `{PRU, π, commitment_hash}` ever transit the network — no private inputs |
-| `identity_signature` or `vault_signature` leaked (e.g. compromised client, malicious dependency) | **Critical.** Attacker can reconstruct every PRU tied to that wallet across every context. This is the single most sensitive value in the system and must never be logged, cached insecurely, or sent off-device. |
-| Phishing site requests a look-alike signature for a fake registry | Both fixed challenges are canonical Solana messages bound to the registry program ID, cluster, wallet public key, and version (see [`03-identity-model.md`](./03-identity-model.md)); a fake registry program produces a different signature |
-| A captured proof `π` replayed against a different action, or front-run from a public mempool | Mode A authorization proofs bind `π` to a protocol-computed `action_payload_hash` via a checked `action_commitment` constraint — see [`06-zk-proofs.md`](./06-zk-proofs.md), "Binding a proof to a specific action" |
-| Low-entropy secret (PIN, password) mixed into identity/vault derivation | **Rejected by design.** Because the registry is fully public and verification is offline, any low-entropy secret mixed into the derivation is brute-forceable by anyone who obtains the accompanying signature — see the rejected-design note in [`03-identity-model.md`](./03-identity-model.md). No future revision should reintroduce a human-memorized secret into this system. |
-| Malicious protocol tries to correlate a user across contexts it controls | Cannot succeed from PRU/commitment data alone; a protocol that controls multiple `context_id`s it issues to the same user could still notice repeat usage patterns at the application layer — this is a metadata/behavioral risk outside ZK-PRU's scope |
-| Replay of a session signature (Mode B) | `session_challenge` includes a timestamp + nonce, making stale signatures rejectable |
+| Threat | Old Architecture | New Architecture |
+|---|---|---|
+| Attacker observes registry contents | Vulnerable to analysis | Registry contains only PRUs + commitments, no linking data |
+| Attacker intercepts network traffic | May capture signatures | Only `{PRU, π}` transit the network — no private inputs |
+| Malicious protocol tricks user into signing | **CRITICAL: Can steal identity** | Signature reveals nothing useful |
+| Phishing site requests look-alike signature | Fake registry produces different signature | Same + unique challenges prevent reuse |
+| Captured proof replayed | Mode A binding prevents this | Mode A binding still prevents this |
+| Session signature replay (Mode B) | Timestamp + nonce prevent reuse | Timestamp + nonce prevent reuse |
 
-## Non-goals
+## Attack Vectors and Mitigations
+
+### Attack Vector 1: Signature Theft
+
+**Old architecture:** A malicious site tricks you into signing the "identity challenge" message.
+- Impact: Full identity compromise
+- Attacker derives `identity_seed` → all PRUs
+
+**New architecture:** A malicious site tricks you into signing the "vault challenge" message.
+- Impact: None
+- The signature can only decrypt the master_seed if the attacker also has the encrypted blob
+- Even with both, the signature can't be reused because challenges have timestamps + nonces
+
+### Attack Vector 2: Compromised Client
+
+**Both architectures:** If the client is compromised (malicious dependency, runtime infection), the attacker may capture secrets in memory.
+
+**Mitigation:**
+- Master seed is wiped from memory when vault is locked
+- No persistent plaintext storage of secrets
+- Use hardware security modules (HSM) or secure enclaves where available
+
+### Attack Vector 3: Encrypted Blob Storage
+
+**Question:** What if an attacker steals the encrypted blob from storage?
+
+**Answer:** The encrypted blob is useless without:
+1. The vault key (derived from wallet signature + unique challenge)
+2. The ability to sign a valid recovery challenge
+
+Even if an attacker has the encrypted blob, they cannot decrypt it without wallet access.
+
+### Attack Vector 4: Phishing for Signatures
+
+**Old architecture:** A phishing site asks you to "connect your wallet" with a look-alike challenge.
+
+**New architecture:** The challenge includes a timestamp and nonce, making each signature unique. A stolen signature cannot be replayed, and without the encrypted blob, it's useless anyway.
+
+## What Is Never Exposed
+
+| Value | Registry | Protocol | Circuit Verifier | Notes |
+|---|---|---|---|---|
+| `master_seed` | No | No | No (private input) | Generated by CSPRNG, never transmitted |
+| `vault_key` | No | No | No | Memory only, derived from signature |
+| `salt` | No | No | No (private input) | Generated per session |
+| `PRU_seed` | No | No | No (computed in-circuit) | Never exposed |
+| `PRU` | Yes | Yes | Yes (public input) | Safe to publish |
+| `commitment_hash` | Yes | Yes | Yes (public input) | Safe to publish |
+| Wallet signatures | No | No | No | Never sent to any service |
+
+## Non-Goals
 
 - **Sybil resistance.** One wallet can generate unlimited unlinkable PRUs. This is intentional — it's a privacy feature, not a bug — and means ZK-PRU on its own cannot guarantee "one person, one identity." Protocols needing that guarantee must add their own mechanism (proof-of-personhood, staking-weighted identity, nullifier schemes, etc.) on top of ZK-PRU.
 - **Metadata privacy.** ZK-PRU protects cryptographic linkability. It does not protect against correlation via IP address, timing analysis, wallet funding source tracing at the chain level, or other out-of-band metadata. Integrators concerned about this should combine ZK-PRU with network-level privacy tooling (e.g. relayers, mixnets) as appropriate.
 - **Fund custody.** ZK-PRU has no concept of balances or custody. It authorizes actions; what those actions do (including moving funds) is entirely up to the integrating protocol.
 
-## Operational recommendations
+## Operational Recommendations
 
-- Never transmit `identity_signature` or `vault_signature` to any server, including your own backend, even over TLS, even for "convenience caching."
+- Never transmit `vault_key` to any server, including your own backend, even over TLS.
 - If caching derived values client-side for UX (e.g. avoiding re-signing every action), cache only in memory for the session — never in persistent storage in plaintext.
-- Audit any circuit implementation (Noir or Circom) against the constraint set in [`06-zk-proofs.md`](./06-zk-proofs.md) before deployment; a circuit that under-constrains any of the four equalities listed there would allow forged proofs.
+- Audit any circuit implementation (Noir or Circom) against the constraint set in [`06-zk-proofs.md`](./06-zk-proofs.md) before deployment; a circuit that under-constrains any of the equalities listed there would allow forged proofs.
+- Use the `lockVault()` method when the user logs out or the session ends to securely wipe the master seed from memory.

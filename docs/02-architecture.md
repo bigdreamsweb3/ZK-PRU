@@ -1,77 +1,128 @@
 # Architecture
 
-## System diagram
+## The Security Problem We're Solving
+
+**The old architecture had a critical vulnerability.** It derived `identity_seed` from wallet signatures:
 
 ```
-                          ┌────────────────────┐
-                          │   User's Wallet     │
-                          │  (never exposes key) │
-                          └─────────┬────────────┘
-                                    │ sign(identity_challenge)  [fixed]
-                                    │ sign(vault_challenge)     [fixed]
-                                    ▼
-                          ┌────────────────────┐
-                          │   Identity Layer     │
-                          │  identity_seed =      │
-                          │  Poseidon(addr, sig)  │
-                          └─────────┬────────────┘
-                                    │ + context_id + vault_signature
-                                    ▼
-                          ┌────────────────────┐
-                          │   PRU Generator       │
-                          │  PRU_seed[ctx] =       │
-                          │  Poseidon(seed, ctx,   │
-                          │           vault_sig)   │
-                          │  PRU[ctx][i] =          │
-                          │  Poseidon(PRU_seed, i)  │
-                          └─────────┬────────────┘
-                                    │ PRU (public) + commitment_hash (public)
-                                    ▼
-                          ┌────────────────────┐
-                          │   Registry            │
-                          │  one record per        │
-                          │  PRU                   │
-                          └─────────┬────────────┘
-                                    │ verify(π, commitment_hash)
-                                    ▼
-                          ┌────────────────────┐
-                          │   ZK Circuit +         │
-                          │   Verifier              │
-                          └─────────┬────────────┘
-                                    ▼
-                          ┌────────────────────┐
-                          │  Authorized Action    │
-                          │  (transfer/vote/login) │
-                          └────────────────────┘
+identity_seed = Poseidon(wallet_address, identity_signature)
+```
+
+A malicious protocol could trick you into signing the same fixed message (disguised as "connect wallet" or "verify identity"), steal your signature, and reconstruct your entire private identity.
+
+**The new architecture breaks this attack vector.** The master seed is independently random and has no mathematical relationship to any wallet signature.
+
+## New System Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER'S DEVICE                              │
+│                                                                  │
+│  ┌──────────────────────┐                                       │
+│  │    CSPRNG Generator   │  ← Generates pure entropy             │
+│  │   master_seed (32B)   │    NO wallet relationship            │
+│  └──────────┬───────────┘                                       │
+│             │                                                    │
+│             │ Wallet signs unique challenge                      │
+│             │ (timestamp + nonce prevent reuse)                  │
+│             ▼                                                    │
+│  ┌──────────────────────┐                                       │
+│  │   AES-256-GCM Vault   │  ← Encrypt master_seed               │
+│  │   encrypted_seed_blob │    Only encrypted blob stored         │
+│  └──────────┬───────────┘                                       │
+│             │                                                    │
+│             │ PRU derivation (entirely on-device)                 │
+│             ▼                                                    │
+│  ┌──────────────────────┐                                       │
+│  │   PRU Generator      │                                       │
+│  │  PRU_seed[P] =       │                                       │
+│  │    Poseidon(         │                                       │
+│  │      master_seed,    │                                       │
+│  │      protocol_id,    │                                       │
+│  │      salt            │                                       │
+│  │    )                 │                                       │
+│  │  PRU[i] = Poseidon(PRU_seed, i)                             │
+│  └──────────┬───────────┘                                       │
+│             │                                                    │
+└─────────────┼────────────────────────────────────────────────────┘
+              │ PRU (public) + commitment_hash (public)
+              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    PUBLIC LAYER (on-chain/registry)              │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  Registry stores per protocol:                             │  │
+│  │    - commitment_hash = Poseidon(PRU_seed[P])              │  │
+│  │    - PRU_public_keys[0..N]                                │  │
+│  │    - NOTHING else                                          │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│             │                                                    │
+│             │ verify(π, commitment_hash)                         │
+│             ▼                                                    │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  ZK Circuit proves: "I know master_seed such that           │  │
+│  │    Poseidon(master_seed, protocol_id, salt) = PRU_seed     │  │
+│  │    Poseidon(PRU_seed) = commitment_hash                    │  │
+│  │    Poseidon(PRU_seed, i) = PRU[i]"                        │  │
+│  │                                                         │  │
+│  │  Reveals: NOTHING about master_seed, wallet, or signatures  │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## The Key Security Invariant
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  ATTACKER STEALS WALLET SIGNATURE                                │
+│                                                                  │
+│  OLD ARCHITECTURE:                                               │
+│    signature → derive identity_seed → derive all PRUs  ← BROKEN  │
+│                                                                  │
+│  NEW ARCHITECTURE:                                               │
+│    signature → (nothing useful)                                  │
+│    master_seed cannot be derived from any signature  ✓ SECURE     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Modules
 
-### 1. Identity Layer (client-side only)
-Derives `identity_seed` and `vault_signature` from two fixed wallet signatures. Never transmits either signature or the resulting seed. See [`03-identity-model.md`](./03-identity-model.md).
+### 1. Encryption Module (`sdk/encryption.ts`)
+Handles AES-256-GCM encryption/decryption of the master seed. The wallet's signature derives the encryption key, but the key is never used to generate the master seed itself.
 
-### 2. PRU Generator (client-side only)
-Combines `identity_seed`, a `context_id`, and `vault_signature` to derive a `PRU_seed`, and from that, any number of indexed PRUs for that context. See [`04-pru-generation.md`](./04-pru-generation.md).
+### 2. Identity Module (`sdk/identity.ts`)
+- `createIdentity()`: Generates master seed locally, derives vault key from wallet signature, encrypts seed
+- `recoverIdentity()`: Signs unique challenge, decrypts master seed locally
+- All operations happen on-device; no secrets leave the browser/node process
 
-### 3. Registry (public, on-chain or off-chain)
-Stores exactly one record per PRU: the PRU public value, its `context_id`, and a single `commitment_hash`. No record contains any field that links it to another record or to a wallet. See [`05-registry.md`](./05-registry.md).
+### 3. PRU Generator (`sdk/pru.ts`)
+Derives PRU_seed and PRUs directly from master_seed. No wallet involvement:
+```
+PRU_seed[protocol_id] = Poseidon(master_seed, protocol_id, salt)
+PRU[i] = Poseidon(PRU_seed, i)
+```
 
-### 4. ZK Circuit + Verifier
-The circuit proves knowledge of the private inputs (`wallet_address`, `identity_signature`, `vault_signature`, `context_id`, `i`) that produce a given `PRU` and `commitment_hash`, without revealing those inputs. See [`06-zk-proofs.md`](./06-zk-proofs.md).
+### 4. ZK Circuit (`circuits/`)
+Proves knowledge of master_seed without revealing it. New constraint set:
+```
+PRU_seed = Poseidon(master_seed, protocol_id, salt)
+commitment_hash = Poseidon(PRU_seed)
+PRU = Poseidon(PRU_seed, index)
+```
 
-### 5. Authorization
+### 5. Registry (`registry/`)
+Stores only commitment hashes and PRU public keys. Structurally cannot store seeds because it never receives them.
+
+### 6. Authorization
 Two modes: ZK mode (primary, private) and signature-fallback mode (compatibility, less private). See [`07-authorization.md`](./07-authorization.md).
 
-### 6. Protocol Integration SDK
-The interface a protocol uses to accept a PRU + proof, and the interface a client app uses to connect a wallet and generate PRUs/proofs. See [`08-protocol-integration.md`](./08-protocol-integration.md).
-
-## Trust boundaries
+## Trust Boundaries
 
 | Component | Trusted with |
 |---|---|
-| User's device / wallet | Private key, both signatures, identity_seed, PRU_seed |
-| Registry (public) | PRU public keys, commitment hashes — nothing private |
+| User's device | Master seed (in memory only), vault key |
+| Registry | PRU public keys, commitment hashes — nothing private |
 | Protocol / verifier | PRU, proof π, commitment_hash — nothing private |
-| ZK circuit | Runs entirely client-side; private inputs never leave the proving environment |
+| ZK circuit | Runs entirely client-side; master_seed never leaves device |
 
-Nothing outside the user's own device ever has access to `wallet_address` paired with `identity_signature` or `vault_signature` in a way that could be replayed or used to reconstruct `identity_seed`.
+**The critical difference:** Nothing outside the user's device ever has access to the master seed or any value that could derive it. The registry structurally cannot store raw seeds because the system is designed so it never receives them.

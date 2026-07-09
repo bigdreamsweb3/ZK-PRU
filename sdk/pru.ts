@@ -1,27 +1,55 @@
 /**
- * PRU generation — implements docs/04-pru-generation.md exactly.
+ * PRU generation — NEW SECURE ARCHITECTURE.
  *
- *   PRU_seed[context_id] = Poseidon(identity_seed, context_id, vault_signature)
- *   PRU[context_id][i]   = Poseidon(PRU_seed[context_id], i)
+ * KEY SECURITY PRINCIPLE: PRU derivation is entirely local and derives from
+ * the master_seed. No wallet signature is involved in PRU derivation.
  *
- * PRU_seed is never exposed outside the ZK circuit — this module keeps
- * it in a Private<> wrapper and only returns the final PRU as Public<>.
+ * NEW DERIVATION CHAIN:
+ *   master_seed (CSPRNG, never transmitted)
+ *     ↓
+ *   PRU_seed[protocol_id][purpose] = Poseidon(master_seed, protocol_id, purpose)
+ *     ↓
+ *   PRU[protocol_id][purpose][i] = Poseidon(PRU_seed, i)
+ *     ↓
+ *   commitment_hash = Poseidon(PRU_seed)
+ *
+ * The master_seed is independent of any wallet. A stolen signature cannot
+ * derive the master_seed because there's no mathematical relationship between
+ * them.
+ *
+ * Key features:
+ * - purpose parameter allows multiple independent PRU sets per protocol
+ * - Protocol-independent recovery: user can derive PRUs for ANY protocol from master_seed
+ * - PRU_seed is never exposed outside the ZK circuit
  */
 import { hash1, hash2, hash3, stringToField } from "./poseidon.js";
-import type { FieldElement, Private, Public } from "./types.js";
+import type { FieldElement, MasterSeed, Private, Public } from "./types.js";
 
+/**
+ * Derives PRU_seed from master_seed for a specific protocol and purpose.
+ *
+ * @param masterSeed - The 32-byte master seed (CSPRNG-generated)
+ * @param protocolId - Identifies the protocol (e.g., "defi-xyz")
+ * @param purpose - Allows multiple independent PRU sets per protocol (e.g., "lending", "trading")
+ */
 export function derivePRUSeed(
-  identitySeed: Private<FieldElement>,
-  contextId: string,
-  vaultSignature: Private<string>
+  masterSeed: MasterSeed,
+  protocolId: string,
+  purpose: string
 ): Private<FieldElement> {
+  // Convert master_seed bytes to field element
+  const masterField = bytesToField(masterSeed);
+
   return hash3(
-    identitySeed,
-    stringToField(contextId),
-    stringToField(vaultSignature)
+    masterField,
+    stringToField(protocolId),
+    stringToField(purpose)
   ) as Private<FieldElement>;
 }
 
+/**
+ * Derives a specific PRU from a PRU_seed.
+ */
 export function derivePRU(
   pruSeed: Private<FieldElement>,
   index: number
@@ -29,19 +57,23 @@ export function derivePRU(
   return hash2(pruSeed, BigInt(index)) as Public<FieldElement>;
 }
 
+/**
+ * Computes the commitment hash for a PRU_seed.
+ * This is stored in the registry, not the PRU_seed itself.
+ */
 export function commitmentHash(pruSeed: Private<FieldElement>): Public<string> {
-  // Single-input Poseidon over PRU_seed, per docs/05-registry.md:
-  // commitment_hash = Poseidon(PRU_seed[context_id])
   return hash1(pruSeed).toString() as Public<string>;
 }
 
 /**
- * Binds a proof to a specific action, per docs/06-zk-proofs.md,
- * "Binding a proof to a specific action". Safe to publish: it reveals
- * nothing about pruSeed, but changes completely for every distinct
- * actionPayloadHash, so a proof can't be silently replayed against a
- * different action. Pass actionPayloadHash = 0n for a pure login proof
- * with no on-chain action to bind.
+ * Binds a proof to a specific action, preventing replay attacks.
+ *
+ * Safe to publish: it reveals nothing about pruSeed, but changes
+ * completely for every distinct actionPayloadHash, so a proof can't be
+ * silently replayed against a different action.
+ *
+ * Pass actionPayloadHash = 0n for a pure login proof with no on-chain
+ * action to bind.
  */
 export function actionCommitment(
   pruSeed: Private<FieldElement>,
@@ -51,18 +83,50 @@ export function actionCommitment(
 }
 
 /**
- * Convenience helper: derive a PRU end-to-end for a given context+index,
+ * Convenience helper: derive a PRU end-to-end for a given protocol+purpose+index,
  * without exposing PRU_seed to the caller.
  */
 export function generatePRU(
-  identitySeed: Private<FieldElement>,
-  vaultSignature: Private<string>,
-  contextId: string,
+  masterSeed: MasterSeed,
+  protocolId: string,
+  purpose: string,
   index: number
 ): { pru: Public<FieldElement>; commitmentHash: Public<string> } {
-  const pruSeed = derivePRUSeed(identitySeed, contextId, vaultSignature);
+  const pruSeed = derivePRUSeed(masterSeed, protocolId, purpose);
   return {
     pru: derivePRU(pruSeed, index),
     commitmentHash: commitmentHash(pruSeed),
   };
+}
+
+/**
+ * Converts a 32-byte array to a BN254 field element.
+ * Uses simple big-endian conversion with field reduction.
+ */
+export function bytesToField(bytes: Uint8Array): FieldElement {
+  let value = 0n;
+  for (const byte of bytes) {
+    value = (value << 8n) | BigInt(byte);
+  }
+  // Reduce modulo BN254 prime for field compatibility
+  const BN254_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+  return value % BN254_PRIME;
+}
+
+/**
+ * Generates multiple PRUs for a protocol+purpose in one call.
+ * All share the same PRU_seed but have different indices.
+ */
+export function generatePRUs(
+  masterSeed: MasterSeed,
+  protocolId: string,
+  purpose: string,
+  count: number,
+  startIndex = 0
+): Array<{ index: number; pru: Public<FieldElement> }> {
+  const pruSeed = derivePRUSeed(masterSeed, protocolId, purpose);
+  return Array.from({ length: count }, (_, i) => ({
+    index: startIndex + i,
+    pru: derivePRU(pruSeed, startIndex + i),
+  }));
 }

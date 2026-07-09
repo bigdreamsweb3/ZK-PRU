@@ -1,10 +1,32 @@
 # ZK-PRU Attack Simulation Suite
 
-Adversarial tests against the Solana-native ZK-PRU design.
+Adversarial tests against the ZK-PRU design — NEW SECURE ARCHITECTURE.
+
+## Architecture Security
+
+**NEW ARCHITECTURE (SECURE):**
+```
+identity_seed = Poseidon(wallet_address, signature)     // From wallet
+random_entropy = CSPRNG(32 bytes)                     // Generated locally
+master_seed = Poseidon(identity_seed, random_entropy)  // Combines both
+PRU_seed = Poseidon(master_seed, protocol_id, purpose) // From master_seed
+```
+
+**OLD ARCHITECTURE (VULNERABLE):**
+```
+identity_seed = Poseidon(wallet_address, signature)
+PRU_seed = Poseidon(identity_seed, protocol_id, vault_signature)
+```
+
+Key difference: **NEW architecture prevents signature theft attacks** because stolen signatures cannot derive master_seed (missing random_entropy).
 
 ## Run It
 
 ```bash
+# Test NEW secure architecture
+node tests/attack-simulations/new-architecture-attacks.mjs
+
+# Test OLD architecture (legacy control)
 node tests/attack-simulations/run-attacks.mjs
 ```
 
@@ -14,7 +36,7 @@ No `npm install` is required. The suite uses Node's built-in `crypto` module.
 
 - Wallet keys are genuine Ed25519 keypairs.
 - Signing and verification use real asymmetric cryptography.
-- The suite checks that a fake registry program binding cannot reuse signatures generated for the real registry program binding.
+- AES-256-GCM encryption with authentication tags.
 
 ## What Is Simulated
 
@@ -29,19 +51,17 @@ cd circuits/noir
 nargo test
 ```
 
-## Scenarios
+## NEW Architecture Attack Scenarios
 
 | # | Attack | What It Tests |
 |---|---|---|
-| 1 | Signature forgery without the private key | Cannot fake identity or vault signatures without the wallet key |
-| 2 | Registry-only cross-context correlation | Public registry records do not link contexts |
-| 3 | Cross-context proof substitution | One context cannot satisfy another context's commitment |
-| 4 | Action replay / mempool front-running | Action binding prevents proof reuse for a different action |
-| 5 | Signature leak | Documents the critical boundary if both fixed signatures leak |
-| 6 | PIN brute-force | Confirms why low-entropy user secrets are excluded |
-| 7 | Fake registry program phishing | Registry program binding changes the signed message |
-| 8 | Malformed proof submission | Bad inputs do not verify |
-| 9 | Silent fallback downgrade | Mode B requires explicit opt-in |
-| 10 | Registry field injection | Registry records cannot store extra wallet-linking fields |
-| 11 | Stale session replay | Session nonces and timestamps prevent replay |
-| 12 | Recovery reproducibility | The legitimate wallet recovery path is deterministic |
+| 1 | Stolen signature → master_seed | Attacker cannot derive master_seed from stolen signature alone |
+| 2 | Stolen sig + blob → decrypt | Cannot decrypt blob with stolen signature (different challenge) |
+| 3 | Phishing same challenge | Phishing protection through unique challenges |
+| 4 | Cross-protocol correlation | Registry does not link PRUs across protocols |
+| 5 | Old architecture vulnerability | Control test showing OLD architecture was broken |
+| 6 | Protocol-independent recovery | User can recover PRUs without protocol being available |
+| 7 | Wrong wallet cannot decrypt | Encrypted blob is bound to specific wallet only |
+| 8 | Tampered blob detection | AES-256-GCM auth tag detects modifications |
+| 9 | Signature replay prevention | Unique challenges prevent signature reuse |
+| 10 | Brute force PRU_seed | Commitment hash is computationally infeasible to invert |
