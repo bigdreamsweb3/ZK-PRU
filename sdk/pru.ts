@@ -25,6 +25,9 @@
 import { hash1, hash2, hash3, stringToField } from "./poseidon.js";
 import type { FieldElement, MasterSeed, Private, Public } from "./types.js";
 
+const USER_SECRET_NAMESPACE_DOMAIN = "ZK_PRU_USER_NAMESPACE_V1";
+
+
 /**
  * Derives PRU_seed from master_seed for a specific protocol and purpose.
  *
@@ -32,16 +35,22 @@ import type { FieldElement, MasterSeed, Private, Public } from "./types.js";
  * @param protocolId - Identifies the protocol (e.g., "defi-xyz")
  * @param purpose - Allows multiple independent PRU sets per protocol (e.g., "lending", "trading")
  */
+export function deriveUserSecretNamespace(masterSeed: MasterSeed): Private<FieldElement> {
+  return hash2(
+    bytesToField(masterSeed),
+    stringToField(USER_SECRET_NAMESPACE_DOMAIN)
+  ) as Private<FieldElement>;
+}
+
 export function derivePRUSeed(
   masterSeed: MasterSeed,
   protocolId: string,
   purpose: string
 ): Private<FieldElement> {
-  // Convert master_seed bytes to field element
-  const masterField = bytesToField(masterSeed);
+  const userSecretNamespace = deriveUserSecretNamespace(masterSeed);
 
   return hash3(
-    masterField,
+    userSecretNamespace,
     stringToField(protocolId),
     stringToField(purpose)
   ) as Private<FieldElement>;

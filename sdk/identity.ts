@@ -243,7 +243,7 @@ export async function recoverIdentity(
   const vaultKey = hash2(
     stringToField(signature),
     stringToField(recoveryChallenge.challenge)
-  ) as VaultKey;
+  ).toString() as VaultKey;
 
   // Step 4: Decrypt the random_entropy
   const randomEntropy = await decryptMasterSeed(seedBlob.encryptedSeed, vaultKey);

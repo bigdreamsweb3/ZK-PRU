@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveIdentity, signIdentityChallenge, signVaultChallenge } from "../sdk/identity.js";
+import { buildRecoveryChallenge, createIdentity, deriveMasterSeed, generateRandomEntropy } from "../sdk/identity.js";
 import { MockWallet } from "../sdk/mock-wallet.js";
 import type { RegistryBinding } from "../sdk/types.js";
 
@@ -9,43 +9,34 @@ const REGISTRY_BINDING: RegistryBinding = {
   version: "v1",
 };
 
-describe("identity derivation", () => {
-  it("is deterministic across repeated calls for the same wallet", async () => {
-    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const first = await deriveIdentity(wallet, REGISTRY_BINDING);
-    const second = await deriveIdentity(wallet, REGISTRY_BINDING);
-
-    expect(first.identitySeed).toBe(second.identitySeed);
-    expect(first.vaultSignature).toBe(second.vaultSignature);
+describe("identity and master seed", () => {
+  it("generates 32 bytes of random entropy", () => {
+    expect(generateRandomEntropy()).toHaveLength(32);
   });
 
-  it("produces different identity seeds for different wallets", async () => {
-    const walletA = new MockWallet("SoLanaWalletAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "secret-a");
-    const walletB = new MockWallet("SoLanaWalletBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "secret-b");
+  it("derives deterministic master seeds from the same identity seed and entropy", () => {
+    const entropy = new Uint8Array(32).fill(9);
+    const first = deriveMasterSeed(12345n, entropy);
+    const second = deriveMasterSeed(12345n, entropy);
 
-    const a = await deriveIdentity(walletA, REGISTRY_BINDING);
-    const b = await deriveIdentity(walletB, REGISTRY_BINDING);
-
-    expect(a.identitySeed).not.toBe(b.identitySeed);
+    expect(Buffer.from(first).toString("hex")).toBe(Buffer.from(second).toString("hex"));
   });
 
-  it("builds distinct Solana signatures for identity vs vault", async () => {
+  it("creates different master seeds across fresh vault initializations", async () => {
     const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const identitySig = await signIdentityChallenge(wallet, REGISTRY_BINDING);
-    const vaultSig = await signVaultChallenge(wallet, REGISTRY_BINDING);
-    expect(identitySig).not.toBe(vaultSig);
-  });
 
-  it("produces a different identity signature when bound to a different registry program", async () => {
-    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const realBinding = REGISTRY_BINDING;
-    const phishingBinding: RegistryBinding = {
-      ...REGISTRY_BINDING,
-      registryProgramId: "FakeZkPruRegistry1111111111111111111111111",
-    };
+    const first = await createIdentity(wallet, REGISTRY_BINDING);
+    const second = await createIdentity(wallet, REGISTRY_BINDING);
 
-    expect(await signIdentityChallenge(wallet, realBinding)).not.toBe(
-      await signIdentityChallenge(wallet, phishingBinding)
+    expect(Buffer.from(first.identity.masterSeed).toString("hex")).not.toBe(
+      Buffer.from(second.identity.masterSeed).toString("hex")
     );
+  });
+
+  it("builds expiring recovery challenges", () => {
+    const challenge = buildRecoveryChallenge("SoLanaWallet111111111111111111111111111111", REGISTRY_BINDING);
+
+    expect(challenge.challenge.length).toBeGreaterThan(0);
+    expect(challenge.expiresAt).toBeGreaterThan(challenge.timestamp);
   });
 });

@@ -1,55 +1,53 @@
 import { describe, expect, it } from "vitest";
-import { deriveIdentity } from "../sdk/identity.js";
-import { derivePRUSeed, derivePRU, generatePRU } from "../sdk/pru.js";
-import { MockWallet } from "../sdk/mock-wallet.js";
-import type { RegistryBinding } from "../sdk/types.js";
+import { derivePRUSeed, derivePRU, deriveUserSecretNamespace, generatePRU } from "../sdk/pru.js";
+import type { MasterSeed } from "../sdk/types.js";
 
-const REGISTRY_BINDING: RegistryBinding = {
-  cluster: "devnet",
-  registryProgramId: "ZkPruRegistryDevnet111111111111111111111111",
-  version: "v1",
-};
+function masterSeed(fill: number): MasterSeed {
+  return new Uint8Array(32).fill(fill) as MasterSeed;
+}
 
 describe("PRU generation", () => {
-  it("produces different PRU_seed values for different contexts from the same identity", async () => {
-    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const { identitySeed, vaultSignature } = await deriveIdentity(wallet, REGISTRY_BINDING);
+  it("derives a stable user secret namespace from the master seed", () => {
+    const seed = masterSeed(5);
 
-    const seedA = derivePRUSeed(identitySeed, "protocol-A", vaultSignature);
-    const seedB = derivePRUSeed(identitySeed, "protocol-B", vaultSignature);
+    expect(deriveUserSecretNamespace(seed)).toBe(deriveUserSecretNamespace(seed));
+    expect(deriveUserSecretNamespace(seed)).not.toBe(deriveUserSecretNamespace(masterSeed(6)));
+  });
+
+  it("produces different PRU_seed values for different protocols", () => {
+    const seed = masterSeed(7);
+
+    const seedA = derivePRUSeed(seed, "protocol-A", "payment");
+    const seedB = derivePRUSeed(seed, "protocol-B", "payment");
 
     expect(seedA).not.toBe(seedB);
   });
 
-  it("produces different commitment hashes for different contexts, with no shared derivable value", async () => {
-    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const { identitySeed, vaultSignature } = await deriveIdentity(wallet, REGISTRY_BINDING);
+  it("produces different PRU_seed values for different purposes", () => {
+    const seed = masterSeed(7);
 
-    const a = generatePRU(identitySeed, vaultSignature, "protocol-A", 0);
-    const b = generatePRU(identitySeed, vaultSignature, "protocol-B", 0);
+    const receiving = derivePRUSeed(seed, "trustlink", "tin-receiving");
+    const settlement = derivePRUSeed(seed, "trustlink", "tsn-settlement");
 
-    expect(a.commitmentHash).not.toBe(b.commitmentHash);
-    expect(a.pru).not.toBe(b.pru);
+    expect(receiving).not.toBe(settlement);
   });
 
-  it("is deterministic: same identity + context + index always yields the same PRU", async () => {
-    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const { identitySeed, vaultSignature } = await deriveIdentity(wallet, REGISTRY_BINDING);
+  it("is deterministic for the same master seed, protocol, purpose, and index", () => {
+    const seed = masterSeed(11);
 
-    const first = generatePRU(identitySeed, vaultSignature, "protocol-A", 0);
-    const second = generatePRU(identitySeed, vaultSignature, "protocol-A", 0);
+    const first = generatePRU(seed, "protocol-A", "payment", 0);
+    const second = generatePRU(seed, "protocol-A", "payment", 0);
 
     expect(first.pru).toBe(second.pru);
     expect(first.commitmentHash).toBe(second.commitmentHash);
   });
 
-  it("produces distinct PRUs for different indices within the same context", async () => {
-    const wallet = new MockWallet("SoLanaWallet111111111111111111111111111111", "secret-key-1");
-    const { identitySeed, vaultSignature } = await deriveIdentity(wallet, REGISTRY_BINDING);
-    const seed = derivePRUSeed(identitySeed, "protocol-A", vaultSignature);
+  it("produces distinct PRUs for different indices within the same purpose", () => {
+    const seed = masterSeed(13);
+    const pruSeed = derivePRUSeed(seed, "protocol-A", "payment");
 
-    const pru0 = derivePRU(seed, 0);
-    const pru1 = derivePRU(seed, 1);
+    const pru0 = derivePRU(pruSeed, 0);
+    const pru1 = derivePRU(pruSeed, 1);
 
     expect(pru0).not.toBe(pru1);
   });

@@ -47,10 +47,12 @@ export async function encryptMasterSeed(
   const key = await deriveEncryptionKey(vaultKey);
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
 
+  const plaintext = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+
   const ciphertextWithTag = await crypto.subtle.encrypt(
-    { name: ALGORITHM, iv, tagLength: TAG_LENGTH },
+    { name: ALGORITHM, iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer, tagLength: TAG_LENGTH },
     key,
-    data
+    plaintext
   );
 
   // GCM appends the auth tag to the ciphertext
@@ -85,9 +87,9 @@ export async function decryptMasterSeed(
     combined.set(authTag, ciphertext.length);
 
     const plaintext = await crypto.subtle.decrypt(
-      { name: ALGORITHM, iv, tagLength: TAG_LENGTH },
+      { name: ALGORITHM, iv: iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer, tagLength: TAG_LENGTH },
       key,
-      combined
+      combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength) as ArrayBuffer
     );
 
     return new Uint8Array(plaintext);

@@ -1,0 +1,19 @@
+[package]
+name = "zk-pru-registry"
+version = "0.1.0"
+description = "ZK-PRU devnet registry program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "zk_pru_registry"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"

@@ -1,0 +1,19 @@
+[toolchain]
+anchor_version = "0.30.1"
+
+[features]
+seeds = false
+skip-lint = false
+
+[programs.devnet]
+zk_pru_registry = "4hHyXGEzu8EcWrkka8A1YTzw9dGtTZYbg4N7PGoSdb3j"
+
+[programs.localnet]
+zk_pru_registry = "4hHyXGEzu8EcWrkka8A1YTzw9dGtTZYbg4N7PGoSdb3j"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "echo Add Anchor tests after program build is verified."

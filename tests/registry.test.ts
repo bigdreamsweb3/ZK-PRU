@@ -27,8 +27,10 @@ describe("MemoryRegistry", () => {
     await registry.register("protocol-A", "pru-0", "commit-a");
     const [record] = registry._dump();
 
+    if (!record) throw new Error("expected a registry record to be present");
+
     expect(Object.keys(record).sort()).toEqual(
-      ["commitmentHash", "contextId", "pru"].sort()
+      ["commitmentHash", "contextId", "pru"].sort(),
     );
   });
 });

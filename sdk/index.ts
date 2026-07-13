@@ -24,7 +24,6 @@ import {
   recoverIdentity,
   buildSessionChallenge,
   buildRecoveryChallenge,
-  type RecoveryChallenge,
 } from "./identity.js";
 import {
   generatePRU as derivePRUPair,
@@ -51,6 +50,7 @@ import type {
   Private,
   Public,
   Registry,
+  RecoveryChallenge,
   RegistryBinding,
   SeedBlob,
   WalletSigner,
@@ -317,5 +317,8 @@ export class ZKPRUVerifier {
 
 export * from "./types.js";
 export { buildRecoveryChallenge, buildSessionChallenge } from "./identity.js";
-export { derivePRU, derivePRUSeed, commitmentHash, actionCommitment, generatePRUs, bytesToField } from "./pru.js";
+export { derivePRU, derivePRUSeed, deriveUserSecretNamespace, commitmentHash, actionCommitment, generatePRUs, bytesToField } from "./pru.js";
 export { isValidEncryptedSeed } from "./encryption.js";
+export * from "./purpose.js";
+export * from "./stable-units.js";
+export * from "./delegated-capability.js";
