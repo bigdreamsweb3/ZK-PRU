@@ -1,0 +1,14 @@
+/home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/deps/serde-464e20b2a389a286.d: /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/build/serde-fa74c232708f4a63/out/private.rs
+
+/home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/deps/libserde-464e20b2a389a286.rlib: /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/build/serde-fa74c232708f4a63/out/private.rs
+
+/home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/deps/libserde-464e20b2a389a286.rmeta: /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/build/serde-fa74c232708f4a63/out/private.rs
+
+/home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/bigdream/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/build/serde-fa74c232708f4a63/out/private.rs:
+
+# env-dep:OUT_DIR=/home/bigdream/projects/trust-link/ZK-PRU/programs/zk-pru-registry/target/debug/build/serde-fa74c232708f4a63/out

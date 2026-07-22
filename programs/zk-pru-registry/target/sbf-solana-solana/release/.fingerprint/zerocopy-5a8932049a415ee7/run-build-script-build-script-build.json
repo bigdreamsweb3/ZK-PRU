@@ -1,0 +1,1 @@
+{"rustc":15952695707457292308,"features":"","target":0,"profile":0,"path":0,"deps":[[46495378076859512,"build_script_build",false,10735804462873574467]],"local":[{"RerunIfChanged":{"output":"sbf-solana-solana/release/build/zerocopy-5a8932049a415ee7/output","paths":["build.rs","Cargo.toml"]}}],"rustflags":[],"metadata":0,"config":0,"compile_kind":0}
